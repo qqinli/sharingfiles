@@ -1,0 +1,138 @@
+---
+title: "Parallel computations in R"
+author: "Qin Li"
+date: '2017.02'
+output:
+  html_document: default
+---
+
+---
+#### Why am I doing this
+
+The common motivation behind parallel computing is that something is taking too long time. When the task is repeating the same function (or bootstrapping/fitting multiple regression models), you should start executing parallel programs!
+
+
+##### What are the steps
+
+- **run R scripts on cluster**
+    - basic steps:
+        1. connect to the cluster with your ZCU account
+            - command: 
+                - `ssh your_account@zoology.ubc.ca`
+                - `ssh cluster` # 6 jobs only on the head node
+                - `ssh crunch**` # use another less busy node (up to 16 jobs)
+            - ZCU wiki:
+                - cluster access: https://zcu.zoology.ubc.ca:442/wiki/index.php/Cluster_Access
+                - cluster status: https://clweb.zoology.ubc.ca/orwell/
+        2. start a screen session
+            - command: `screen -S your_screen_name` 
+            - because you want to keep the script running even if your connection drops
+            - you could create different screens with various names for multiple programming
+            - then you can "shutdown your laptop, go home, log in to the cluster from a different computer, attach to the screen session, and continue to interact with your program."
+        3. run your R script
+            - command: `Rscript your_R_script.R`
+            - make sure you've already uploaded your data and scripts *(tested)* to a certain directory
+            - you can use command lines to do this (i.e., `scp`), but it will be easier and faster using a FTP client, e.g. *FileZilla*, to upload or download files
+        4. detach from a screen session
+            - keyboard command: `ctrl-a d`
+                - press `control` and then `a`, hold them, then hit `d`
+            - after this, you will return to the previous shell window and you can disconnect your client with your job running in the background
+        5. attach to a running  screen
+            - command to check all screens: `screen -ls`
+            - command to attch one: `screen -r your_screen_name`
+        6. terminate a screen
+            - command: `exit`
+        7. log out
+            - keyboard command: `ctrl-d`
+    
+    - command lines in *Terminal*: an example
+    
+    ```{r eval=FALSE}
+        $ ssh qinli@zoology.ubc.ca   # connect to the main Zoology server
+        Password: # type your password
+        qinli% ssh cluster    # ssh to the head-node
+        ~ $ ls
+        ~ $ cd the_directory_you_want_to_work
+        ~/work_directory $ screen -S mywork    # 'mywork' is the name of the screen
+        ~/work_directory $ Rscript xxx.R    # run R script
+        
+        ctrl-a d    # keyboard command to detach the screen
+        
+        ~/work_directory $ screen -ls    # check running/detached screens
+        ~/work_directory $ screen -r mywork    # attach the screen
+        ~/work_directory $ exit    # determinate the screen when the job is done
+        
+        ctrl-d    # keyboard command (connection to cluster closed)
+        ctrl-d    # keyboard command (connection to zoology.ubc.ca closed)
+    ```
+        
+- **parallel computing in R**
+    - the `parallel` package
+        - is basically about repeat the same function in parallel -- *SAVE TIME!*
+        - use multiple cores:
+            - calculate the number of cores and initiate cluster
+                - `no_cores <- detectCores() - 1`
+                - `cl <- makeCluster(no_cores)`
+            - a good number of clusters is *the numbers of available cores – 1*;
+                - using all cores might prevent you from doing anything else;
+        
+    - `parLapply`: the parallel version of `lapply`
+        - learning `lapply` is the key: it takes one parameter (a vector/list), apply `FUN` to each element, and returns a list of the same length
+            - use `parSapply` if you only want to return a simple value and directly get it processed as a vector/matrix
+        - create your own function *involving repetition*
+            - which could solve your problem that is amenable to parallelism
+            - parallel version: `parLapply(cl, parameter, myFUN)`
+        - variable scope
+            - you need to specify what variables and libraries that you need for the parallel function to work
+                - `clusterEvalQ(cl, library(xxx))`
+                - `clusterExport(cl, list("variable1", "variable2"))`
+            - or you have the option on Mac/Linux of using `makeCluster(no_core, type="FORK")`
+                -  which automatically contains all environment variables and no need to worry about variable corruption
+            
+    - save results and shutdown cluster
+        - `stopCluster(cl)`
+        - once we are done we need to close the cluster so that resources such as memory are returned to the operating system.
+    
+    - a simple example: simulate 100 datasets from normal distribution
+        - you can easily do this with a `for` loop or `sapply`, but here is a parallel version
+        
+    ```{r eval=FALSE}
+    # Start up a parallel cluster
+    library(parallel)
+    
+    # create a function to generate 1000 numbers from a normal distribution 
+    # with mean = x and sd = 1
+    myFun <- function(x){
+        dt <- rnorm(1000,x,1)
+        return(dt)
+    }
+    
+    v.mean <- c(1:100) # 100 values for means of normal distributions
+    
+    # initiate cluster
+    no_cores <- detectCores() - 1
+    cl <- makeCluster(no_core, type="FORK")
+    
+    # or you need to specify variables that you need for the parallel function to work
+    # clusterExport(cl, list("v.mean", "myFun"))
+    
+    mydata <- parLapply(cl, v.mean, myFun)
+    
+    # tryCatch(
+    # mydata <- parLapply(cl, v.mean, myFun),
+    # error = function(e) print(e)
+    # ) # error handling function
+    
+    saveRDS(mydata, file = "mydata.rds")
+
+    stopCluster(cl) # shutdown cluster
+    ```
+
+##### more info
+
+- screen commands: https://www.maths.ox.ac.uk/help/faqs/programming/jobs-using-screen
+- parallel computing in R
+    - https://www.r-bloggers.com/how-to-go-parallel-in-r-basics-tips/
+    - http://www.glennklockwood.com/data-intensive/r/lapply-parallelism.html
+    - http://www.win-vector.com/blog/2016/01/parallel-computing-in-r/
+- google
