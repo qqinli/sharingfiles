@@ -6,13 +6,11 @@ output:
   html_document: default
 ---
 
----
 #### Why am I doing this
 
 The common motivation behind parallel computing is that something is taking too long time. When the task is repeating the same function (or bootstrapping/fitting multiple regression models), you should start executing parallel programs!
 
-
-##### What are the steps
+#### What are the steps
 
 - **run R scripts on cluster**
     - basic steps:
@@ -128,7 +126,7 @@ The common motivation behind parallel computing is that something is taking too 
     stopCluster(cl) # shutdown cluster
     ```
 
-##### more info
+#### more info
 
 - screen commands: https://www.maths.ox.ac.uk/help/faqs/programming/jobs-using-screen
 - parallel computing in R
